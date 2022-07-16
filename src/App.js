@@ -1,9 +1,10 @@
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { Suspense, useMemo } from "react";
-import { RGBELoader } from "three-stdlib";
-import { FloatType, PMREMGenerator } from "three";
-import { Loader } from "@react-three/drei"
+import { Environment, OrbitControls } from "@react-three/drei";
+import { mergeBufferGeometries } from "three-stdlib";
+import { BoxGeometry, CylinderGeometry, Vector2 } from "three";
 import "./App.css";
+import SimplexNoise from "simplex-noise";
 
 function App() {
   return (
@@ -14,36 +15,60 @@ function App() {
       >
         <color attach="background" args={["#FFEECC"]} />
         <Suspense fallback={null}>
-          <Box />
+          <Environment preset="sunset" />
+
+          <Terrain />
+          <OrbitControls autoRotate autoRotateSpeed={0.6} enablePan={false} />
         </Suspense>
       </Canvas>
-      {/* <Loader /> */}
     </div>
   );
 }
 
 export default App;
 
-const Box = () => {
-  const { gl } = useThree();
-  const pmremGenerator = useMemo(() => {
-    return new PMREMGenerator(gl);
-  }, [gl])
+const getHexGeometry = (height, position) => {
+  let geo = new CylinderGeometry(1, 1, height, 6, 1, false);
+  geo.translate(position.x, height * 0.5, position.y);
 
-  const texture = useLoader(RGBELoader, "./assets/envmap.hdr", loader => {
-    loader.setDataType(FloatType)
-    
-  });
-  const envMap = useMemo(() => {
-    if (texture) {
-      return pmremGenerator.fromEquirectangular(texture).texture;
+  return geo;
+};
+
+const Terrain = ({ envMap }) => {
+  const hexGeometry = useMemo(() => {
+    let geometries = new BoxGeometry(0, 0, 0);
+    const simplex = new SimplexNoise();
+
+    const makeHex = (height, position) => {
+      let geo = getHexGeometry(height, position);
+      geometries = mergeBufferGeometries([geometries, geo]);
+    };
+
+    for (let i = -15; i < 15; i++) {
+      for (let j = -15; j < 15; j++) {
+        const position = tileToPosition(i, j);
+        if (position.length() > 16) {
+          continue;
+        }
+
+        const noise = (simplex.noise2D(i * 0.1, j * 0.1) + 1) * 0.5;
+        const height = Math.pow(noise, 1.5) * 10;
+
+        makeHex(height, position);
+      }
     }
-  }, [texture, pmremGenerator])
+
+    return geometries;
+  }, []);
 
   return (
-    <mesh>
-      <sphereGeometry args={[5, 10, 10]} />
-      <meshStandardMaterial envMap={envMap} roughness={0} metalness={1} />
+    <mesh geometry={hexGeometry}>
+      {/* <cylinderGeometry args={[1, 1, 3]} /> */}
+      <meshStandardMaterial envMap={envMap} flatShading={true} />
     </mesh>
   );
 };
+
+function tileToPosition(tileX, tileY) {
+  return new Vector2((tileX + (tileY % 2) * 0.5) * 1.77, tileY * 1.535);
+}
