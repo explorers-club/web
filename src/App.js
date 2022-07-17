@@ -5,6 +5,7 @@ import { mergeBufferGeometries } from "three-stdlib";
 import { BoxGeometry, CylinderGeometry, Vector2 } from "three";
 import "./App.css";
 import SimplexNoise from "simplex-noise";
+import { useControls } from "leva";
 
 function App() {
   return (
@@ -35,6 +36,15 @@ const getHexGeometry = (height, position) => {
 };
 
 const Terrain = ({ envMap }) => {
+  const { radius } = useControls({
+    radius: {
+      value: 15,
+      min: 1,
+      max: 30,
+      step: 1,
+    },
+  });
+
   const hexGeometry = useMemo(() => {
     let geometries = new BoxGeometry(0, 0, 0);
     const simplex = new SimplexNoise();
@@ -44,8 +54,8 @@ const Terrain = ({ envMap }) => {
       geometries = mergeBufferGeometries([geometries, geo]);
     };
 
-    for (let i = -15; i < 15; i++) {
-      for (let j = -15; j < 15; j++) {
+    for (let i = -radius; i < radius; i++) {
+      for (let j = -radius; j < radius; j++) {
         const position = tileToPosition(i, j);
         if (position.length() > 16) {
           continue;
@@ -59,7 +69,7 @@ const Terrain = ({ envMap }) => {
     }
 
     return geometries;
-  }, []);
+  }, [radius]);
 
   return (
     <mesh geometry={hexGeometry}>
